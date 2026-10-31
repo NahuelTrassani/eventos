@@ -8,6 +8,10 @@ Esta etapa deja lista la base del proyecto: el servidor, la configuración por v
 
 `GET /api/events` ya recorre todas las capas hasta la base de datos: router, controller, service, repository y DAO. Cada organizador se devuelve con **populate**, resolviendo la referencia al usuario.
 
+## Temática
+
+Plataforma general de eventos: recitales, conferencias, talleres y otras actividades, organizadas por categoría.
+
 ## Tecnologías
 
 - Node.js con módulos ESM

@@ -2,7 +2,7 @@
 
 Pre-entrega 1 del curso Programación Backend II (CoderHouse).
 
-API REST construida con Express y MongoDB para una plataforma general de eventos: recitales, conferencias, talleres y otras actividades, organizadas por categoría.
+API REST construida con Express y MongoDB para publicar eventos y, en las próximas etapas, gestionar inscripciones.
 
 Esta etapa deja lista la base del proyecto: el servidor, la configuración por variables de entorno, la conexión a **MongoDB Atlas**, las entidades `User` y `Event`, y la estructura de los recursos `events` y `sessions`.
 

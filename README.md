@@ -1,12 +1,12 @@
 # API REST - Plataforma de Eventos e Inscripciones
 
-Pre-entrega 1 del curso Programación Backend II (CoderHouse).
+Pre-entrega 2 del curso Programación Backend II (CoderHouse).
 
 API REST construida con Express y MongoDB para publicar eventos y, en las próximas etapas, gestionar inscripciones.
 
-Esta etapa deja lista la base del proyecto: el servidor, la configuración por variables de entorno, la conexión a **MongoDB Atlas**, las entidades `User` y `Event`, y la estructura de los recursos `events` y `sessions`.
+Sobre la base de la entrega anterior, esta etapa incorpora el **registro seguro de usuarios**: `POST /api/sessions/register` valida los datos, normaliza el email, rechaza duplicados, guarda la contraseña hasheada con **bcrypt** y responde sin exponerla.
 
-`GET /api/events` ya recorre todas las capas hasta la base de datos: router, controller, service, repository y DAO. Cada organizador se devuelve con **populate**, resolviendo la referencia al usuario.
+El registro recorre todas las capas: router, controller, service, repository y DAO. La lógica vive en el service y el hash en un helper reutilizable de `utils/`.
 
 ## Temática
 
@@ -17,6 +17,7 @@ Plataforma general de eventos: recitales, conferencias, talleres y otras activid
 - Node.js con módulos ESM
 - Express 5
 - MongoDB Atlas y Mongoose
+- bcrypt
 - dotenv
 - pnpm
 
@@ -74,16 +75,20 @@ src/
 │   ├── events.controller.js
 │   └── sessions.controller.js
 ├── services/
-│   └── events.service.js
+│   ├── events.service.js
+│   └── sessions.service.js         lógica del registro
 ├── repositories/
-│   └── events.repository.js
+│   ├── events.repository.js
+│   └── users.repository.js
 ├── dao/
-│   └── events.dao.js
+│   ├── events.dao.js
+│   └── users.dao.js
 ├── models/
 │   ├── User.js
 │   └── Event.js
 ├── middlewares/                    preparada para las próximas etapas
-└── utils/                          preparada para las próximas etapas
+└── utils/
+    └── hash.js                     hash y comparación de contraseñas con bcrypt
 ```
 
 ## Arquitectura en capas
@@ -101,7 +106,9 @@ Router → Controller → Service → Repository → DAO → Model → MongoDB
 | DAO        | Ejecuta las operaciones sobre la base           |
 | Model      | Define la estructura de los documentos          |
 
-`health` y `sessions` usan solo router y controller, porque en esta etapa no acceden a datos.
+`health` usa solo router y controller, porque no accede a datos. El registro de `sessions` usa el repository y el DAO de usuarios.
+
+Cuando el service detecta un error de negocio, lo lanza con su código HTTP (`400` o `409`) y el controller responde con ese código. Cualquier error inesperado se responde con `500`.
 
 ## Entidades
 
@@ -112,7 +119,7 @@ Router → Controller → Service → Repository → DAO → Model → MongoDB
 | `first_name` | String | Obligatorio                                       |
 | `last_name`  | String | Obligatorio                                       |
 | `email`      | String | Obligatorio, único, se guarda en minúsculas       |
-| `password`   | String | Obligatorio                                       |
+| `password`   | String | Obligatorio, se guarda hasheado con bcrypt        |
 | `role`       | String | `user`, `organizer` o `admin`. Por defecto `user` |
 
 ### Event
@@ -133,11 +140,11 @@ Las dos entidades registran `createdAt` y `updatedAt`.
 
 ## Rutas disponibles
 
-| Método | Ruta            | Descripción                                   |
-| ------ | --------------- | --------------------------------------------- |
-| GET    | `/api/health`   | Indica que el servidor está activo            |
-| GET    | `/api/events`   | Lista los eventos con su organizador          |
-| GET    | `/api/sessions` | Estructura inicial, todavía sin autenticación |
+| Método | Ruta                     | Descripción                          |
+| ------ | ------------------------ | ------------------------------------ |
+| GET    | `/api/health`            | Indica que el servidor está activo   |
+| GET    | `/api/events`            | Lista los eventos con su organizador |
+| POST   | `/api/sessions/register` | Registra un usuario nuevo            |
 
 ### GET /api/health
 
@@ -151,8 +158,77 @@ Las dos entidades registran `createdAt` y `updatedAt`.
 { "status": "success", "payload": [] }
 ```
 
-### GET /api/sessions
+### POST /api/sessions/register
+
+Campos que espera en el body, en formato JSON:
+
+| Campo        | Reglas                            |
+| ------------ | --------------------------------- |
+| `first_name` | Obligatorio                       |
+| `last_name`  | Obligatorio                       |
+| `email`      | Obligatorio, con formato de email |
+| `password`   | Obligatorio, mínimo 6 caracteres  |
+
+Qué hace el registro:
+
+- Normaliza el email: le quita los espacios y lo pasa a minúsculas.
+- Rechaza el registro si el email ya existe.
+- Guarda la contraseña hasheada con bcrypt, nunca en texto plano.
+- Ignora el campo `role` si viene en el body: todo usuario nuevo se crea como `user`.
+- Responde sin la contraseña.
+
+**Request**
 
 ```json
-{ "status": "success", "payload": [] }
+{
+  "first_name": "Ana",
+  "last_name": "Pérez",
+  "email": "Ana@Mail.com ",
+  "password": "Secreta123"
+}
 ```
+
+**Respuestas**
+
+`201` registro exitoso:
+
+```json
+{
+  "status": "success",
+  "payload": {
+    "id": "665f2a...",
+    "first_name": "Ana",
+    "last_name": "Pérez",
+    "email": "ana@mail.com",
+    "role": "user"
+  }
+}
+```
+
+`400` campos faltantes, email inválido o contraseña corta:
+
+```json
+{ "status": "error", "message": "Todos los campos son obligatorios" }
+```
+
+`409` email ya registrado:
+
+```json
+{ "status": "error", "message": "El correo electrónico ya está registrado" }
+```
+
+### Cómo probarlo
+
+Con el servidor corriendo, enviar un `POST` a `http://localhost:3000/api/sessions/register` desde Postman, con el body en **raw → JSON**, o desde la terminal:
+
+```bash
+curl -X POST http://localhost:3000/api/sessions/register -H "Content-Type: application/json" -d "{\"first_name\":\"Ana\",\"last_name\":\"Pérez\",\"email\":\"Ana@Mail.com \",\"password\":\"Secreta123\"}"
+```
+
+Casos para verificar:
+
+1. Registro exitoso: `201` y la respuesta sin `password`.
+2. Campos faltantes: `400`.
+3. Email con formato inválido: `400`.
+4. Email ya registrado (repetir el mismo request): `409`.
+5. En MongoDB Atlas, el campo `password` del usuario empieza con `$2b$`, es decir, está hasheado.

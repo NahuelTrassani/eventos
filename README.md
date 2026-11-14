@@ -6,7 +6,7 @@ API REST construida con Express y MongoDB para publicar eventos y, en las próxi
 
 Sobre la base de la entrega anterior, esta etapa incorpora el **registro seguro de usuarios**: `POST /api/sessions/register` valida los datos, normaliza el email, rechaza duplicados, guarda la contraseña hasheada con **bcrypt** y responde sin exponerla.
 
-El registro recorre todas las capas: router, controller, service, repository y DAO. La lógica vive en el service y el hash en un helper reutilizable de `utils/`.
+El registro recorre todas las capas: router, controller, service, repository y DAO. La lógica vive en el service y el hash en un helper reutilizable de `utils/`. Los errores de toda la API se responden en JSON con un mismo formato, mediante middlewares globales.
 
 ## Temática
 
@@ -61,7 +61,7 @@ El servidor primero se conecta a la base y después empieza a escuchar. Si la co
 
 ```
 src/
-├── app.js                          configura Express y monta las rutas
+├── app.js                          configura Express, monta rutas y middlewares
 ├── server.js                       conecta la base y levanta el servidor
 ├── config/
 │   ├── env.config.js               lee y valida las variables de entorno
@@ -86,7 +86,9 @@ src/
 ├── models/
 │   ├── User.js
 │   └── Event.js
-├── middlewares/                    preparada para las próximas etapas
+├── middlewares/
+│   ├── notFound.middleware.js      responde 404 a rutas inexistentes
+│   └── errorHandler.middleware.js  responde los errores no controlados
 └── utils/
     └── hash.js                     hash y comparación de contraseñas con bcrypt
 ```
@@ -108,7 +110,19 @@ Router → Controller → Service → Repository → DAO → Model → MongoDB
 
 `health` usa solo router y controller, porque no accede a datos. El registro de `sessions` usa el repository y el DAO de usuarios.
 
-Cuando el service detecta un error de negocio, lo lanza con su código HTTP (`400` o `409`) y el controller responde con ese código. Cualquier error inesperado se responde con `500`.
+## Manejo de errores
+
+Todas las respuestas de error tienen el mismo formato:
+
+```json
+{ "status": "error", "message": "..." }
+```
+
+- **Errores de negocio:** el service los lanza con su código HTTP (`400` o `409`) y el controller responde con ese código.
+- **Rutas inexistentes:** `notFound` responde `404`.
+- **Errores no controlados**, como un body con JSON mal formado: `errorHandler` responde con su código, o con `500` si es un error interno, sin exponer el detalle.
+
+Los dos middlewares se montan en `app.js` después de las rutas.
 
 ## Entidades
 
@@ -208,7 +222,7 @@ Qué hace el registro:
 `400` campos faltantes, email inválido o contraseña corta:
 
 ```json
-{ "status": "error", "message": "Todos los campos son obligatorios" }
+{ "status": "error", "message": "Faltan campos obligatorios" }
 ```
 
 `409` email ya registrado:

@@ -8,7 +8,7 @@ export const register = async (userData) => {
     !userData.email ||
     !userData.password
   ) {
-    const err = new Error("Todos los campos son obligatorios");
+    const err = new Error("Faltan campos obligatorios");
     err.statusCode = 400;
     throw err;
   }

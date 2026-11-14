@@ -1,11 +1,6 @@
 import User from "../models/User.js";
 
 class UserDao {
-  static async getUsers() {
-    const users = await User.find();
-    return users;
-  }
-
   static async createUser(userData) {
     const newUser = new User(userData);
     await newUser.save();

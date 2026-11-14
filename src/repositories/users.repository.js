@@ -5,10 +5,6 @@ class UserRepository {
     this.dao = dao;
   }
 
-  async getUsers() {
-    return this.dao.getUsers();
-  }
-
   async createUser(userData) {
     return this.dao.createUser(userData);
   }
